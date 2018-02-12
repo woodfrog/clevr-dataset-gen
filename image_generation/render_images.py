@@ -72,7 +72,7 @@ parser.add_argument('--max_objects', default=10, type=int,
                     help="The maximum number of objects to place in each scene")
 parser.add_argument('--min_dist', default=0.25, type=float,
                     help="The minimum allowed distance between object centers")
-parser.add_argument('--margin', default=0.1, type=float,
+parser.add_argument('--margin', default=0.0, type=float,
                     help="Along all cardinal directions (left, right, front, back), all " +
                          "objects will be at least this distance apart. This makes resolving " +
                          "spatial relationships slightly less ambiguous.")
@@ -167,18 +167,36 @@ def main(args):
     scene_template = '%s%%0%dd.json' % (prefix, num_digits)
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
     tree_template = '%s%%0%dd.tree' % (prefix, num_digits)
-    img_template = os.path.join(args.output_image_dir, img_template)
-    scene_template = os.path.join(args.output_scene_dir, scene_template)
-    blend_template = os.path.join(args.output_blend_dir, blend_template)
-    tree_template = os.path.join(args.output_tree_dir, tree_template)
 
+    if args.train_flag:
+        split_output_image_dir = os.path.join(args.output_image_dir, 'train/')
+        split_output_tree_dir = os.path.join(args.output_tree_dir, 'train/')
+        split_output_scene_dir = os.path.join(args.output_scene_dir, 'train/')
+        split_output_blend_dir = os.path.join(args.output_blend_dir, 'train/')
+    else:
+        split_output_image_dir = os.path.join(args.output_image_dir, 'test/')
+        split_output_tree_dir = os.path.join(args.output_tree_dir, 'test/')
+        split_output_scene_dir = os.path.join(args.output_scene_dir, 'test/')
+        split_output_blend_dir = os.path.join(args.output_blend_dir, 'test/')
+
+    img_template = os.path.join(split_output_image_dir, img_template)
+    scene_template = os.path.join(split_output_scene_dir, scene_template)
+    blend_template = os.path.join(split_output_blend_dir, blend_template)
+    tree_template = os.path.join(split_output_tree_dir, tree_template)
 
     if not os.path.isdir(args.output_image_dir):
         os.makedirs(args.output_image_dir)
+    if not os.path.isdir(split_output_image_dir):
+        os.makedirs(split_output_image_dir)
     if not os.path.isdir(args.output_scene_dir):
         os.makedirs(args.output_scene_dir)
+    if not os.path.isdir(split_output_scene_dir):
+        os.makedirs(split_output_scene_dir)
     if not os.path.isdir(args.output_tree_dir):
         os.makedirs(args.output_tree_dir)
+    if not os.path.isdir(split_output_tree_dir):
+        os.makedirs(split_output_tree_dir)
+
     if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
         os.makedirs(args.output_blend_dir)
 
@@ -675,7 +693,7 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
             obj_name = [k for k, v in object_mapping if v == obj_name_out][0]
             rgba = color_name_to_rgba[color_name]
 
-        # For cube, adjust the size a bit
+        # For cube, adjust the size a bit, and make rotate it to make it face forward
         if obj_name_out == 'cube':
             r /= math.sqrt(2)
             theta = 45
@@ -683,7 +701,6 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
             theta = 0
 
         # Actually add the object to the scene
-        # todo: explore this
         utils.add_object(args.shape_dir, obj_name, r, (x, y), theta=theta)
         obj = bpy.context.object
         blender_objects.append(obj)
@@ -693,13 +710,17 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
         mat_name_out = specified_obj.attributes['material'].attr_val
         mat_name = material_mapping[mat_name_out]
         # mat_name, mat_name_out = random.choice(material_mapping)
-        # mat_name, mat_name_out = 'MyMetal', 'metal'
         print(mat_name, mat_name_out)
-        # todo: explore this
         utils.add_material(mat_name, Color=rgba)
 
         # Record data about the object in the scene data structure
         pixel_coords_lefttop, pixel_coords_rightbottom = get_bbox(camera, scene_struct, obj, obj_name_out, r)
+
+        # guarantee that objects are all in the image
+        if pixel_coords_lefttop[0] < 0 or pixel_coords_lefttop[1] < 0 or pixel_coords_rightbottom[0] >= args.width or pixel_coords_rightbottom[1] >= args.height:
+            for obj in blender_objects:
+                utils.delete_object(obj)
+            return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
         specified_obj.bbox = (pixel_coords_lefttop, pixel_coords_rightbottom)
 

@@ -59,7 +59,8 @@ module_dicts = [module_dict_split1, module_dict_split2]
 pattern_map = {'describe': 0, 'material': 1, 'color': 2, 'size': 3, 'layout': 4}
 
 training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
-test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0)]
+test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0, 0, 0), (0, 1, 1, 1, 0), (1, 0, 0, 0, 1),
+                 (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
 
 
 # degree range: curently randomize this number, \
