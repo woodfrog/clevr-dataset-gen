@@ -37,22 +37,22 @@ module_dict_split2 = dict()
 
 # objects list
 module_dict_split1['describe'] = ['cylinder', 'sphere']
-module_dict_split2['describe'] = ['cube']
+module_dict_split2['describe'] = ['cube', 'sphere']
 
 # attributes list
 attribute_list = ['material', 'color', 'size']
 
 module_dict_split1['combine'] = {'material': ['metal'],
                                  'color': ['green', 'blue', 'yellow', 'red'],
-                                 'size': ['small']}
+                                 'size': ['large']}
 
 module_dict_split2['combine'] = {'material': ['rubber'],
                                  'color': ['cyan', 'brown', 'gray', 'purple'],
-                                 'size': ['large']}
+                                 'size': ['small']}
 
 # relations list
-module_dict_split1['layout'] = ['top', 'left', 'faraway']
-module_dict_split2['layout'] = ['right', 'bottom', 'next-to']
+module_dict_split1['layout'] = ['front', 'left', 'left-front', 'right-front']
+module_dict_split2['layout'] = ['right', 'behind', 'left-behind', 'right-behind']
 
 module_dicts = [module_dict_split1, module_dict_split2]
 
@@ -96,15 +96,17 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_
 
         if tree.function == 'layout':
             tree.function_obj = Layout(tree.word)
+            print('add layout')
         else:
             tree.function_obj = Describe(tree.word)
+            print('add describe')
 
         # num children
         if level + 1 > max_level:
             tree.num_children = 0
         else:
             tree.num_children = children_dict[tree.function]
-            if tree.function == 'describe' and parent is not None:  # then the parent must be a layout node
+            if parent is not None:  # then the parent must be a layout node
                 if child_idx == 0:
                     parent.function_obj.left_child = tree.function_obj
                 else:
@@ -116,6 +118,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_
 
     # must contain only one child node, which is a combine node
     elif parent.function == 'describe' or parent.function == 'combine':
+        print('add combine')
         valid = [2]
         # no need to sample module for now
         module_id = 0
@@ -230,7 +233,6 @@ def sample_tree(max_level, train=True):
 
 
 if __name__ == '__main__':
-    pass
     # random.seed(12113)
     #
     # # tree = Tree()
@@ -248,3 +250,5 @@ if __name__ == '__main__':
     #     print(objects)
     #
     # visualize_tree(trees)
+
+    tree = sample_tree(max_level=3)

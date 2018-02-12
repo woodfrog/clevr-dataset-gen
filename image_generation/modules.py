@@ -1,10 +1,6 @@
 import random
 
 
-# todo: 1. the position setting part of Layout
-# todo: 2. set size randomly
-# todo: 3. check how to determine the bounding box (not sure about the 2-D mapping of the 3-D position)
-
 def position_add(pos1, pos2):
     x1, y1 = pos1
     x2, y2 = pos2
@@ -18,16 +14,17 @@ def position_mul(pos, scalar):
 
 class Layout:
     # set the bounds for object positions
-    random_lower_bound = 1
-    random_upper_bound = 2
+    random_lower_bound = 1.0
+    random_upper_bound = 1.5
     position_dict = {
         'left': ((-1, 0), (1, 0)),
         'right': ((1, 0), (-1, 0)),
-        'top': ((0, 1), (0, -1)),
-        'bottom': ((0, -1), (0, 1)),
-        'next-to': [((0, 0), (2, 0)), ((2, 0), (0, 0)), ((0, 0), (0, 2)), ((0, 2), (0, 0)), ((-1, -1), (1, 1)),
-                    ((1, 1), (-1, -1))],
-        'faraway': [((-3, -3), (3, 3)), ((3, 3), (-3, -3)), ((3, -3), (-3, 3)), ((-3, 3), (3, -3))]
+        'front': ((0, 2), (0, -2)),
+        'behind': ((0, -2), (0, 2)),
+        'left-front': [((-1, 2), (1, -2))],
+        'right-front': [((1, 2), (-1, -2))],
+        'left-behind': [((-1, -2), (1, 2))],
+        'right-behind': [((1, -2), (-1, 2))]
     }
 
     def __init__(self, layout_type):
@@ -43,15 +40,14 @@ class Layout:
         layout_setting = self.position_dict[self.layout_type]
         if isinstance(layout_setting, list):
             layout_setting = random.sample(layout_setting, 1)[0]
-        scaling = 1.0
-        if self.layout_type in ['left', 'right', 'top', 'bottom']:
-            scaling = random.uniform(self.random_lower_bound, self.random_upper_bound)
+
+        scaling = random.uniform(self.random_lower_bound, self.random_upper_bound)
         self.left_child.change_position(position_add(self.position, position_mul(layout_setting[0], scaling)))
         self.right_child.change_position(position_add(self.position, position_mul(layout_setting[1], scaling)))
 
 
 class Describe:
-    random_pos_range = 3
+    random_pos_range = 2
 
     def __init__(self, object_type):
         self.object_type = object_type

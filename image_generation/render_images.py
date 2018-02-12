@@ -72,7 +72,7 @@ parser.add_argument('--max_objects', default=10, type=int,
                     help="The maximum number of objects to place in each scene")
 parser.add_argument('--min_dist', default=0.25, type=float,
                     help="The minimum allowed distance between object centers")
-parser.add_argument('--margin', default=0.0, type=float,
+parser.add_argument('--margin', default=0.1, type=float,
                     help="Along all cardinal directions (left, right, front, back), all " +
                          "objects will be at least this distance apart. This makes resolving " +
                          "spatial relationships slightly less ambiguous.")
@@ -132,9 +132,9 @@ parser.add_argument('--use_gpu', default=0, type=int,
                     help="Setting --use_gpu 1 enables GPU-accelerated rendering using CUDA. " +
                          "You must have an NVIDIA GPU with the CUDA toolkit installed for " +
                          "to work.")
-parser.add_argument('--width', default=320, type=int,
+parser.add_argument('--width', default=128, type=int,
                     help="The width (in pixels) for the rendered images")
-parser.add_argument('--height', default=240, type=int,
+parser.add_argument('--height', default=128, type=int,
                     help="The height (in pixels) for the rendered images")
 parser.add_argument('--key_light_jitter', default=1.0, type=float,
                     help="The magnitude of random jitter to add to the key light position.")
@@ -193,7 +193,7 @@ def main(args):
             blend_path = blend_template % (i + args.start_idx)
 
         render_scene_with_tree(args,
-                               tree_max_level=2,
+                               tree_max_level=3,
                                output_index=(i + args.start_idx),
                                output_split=args.split,
                                output_image=img_path,
@@ -527,16 +527,8 @@ def render_scene_with_tree(args,
     }
 
     # Put a plane on the ground so we can compute cardinal directions
-    bpy.ops.mesh.primitive_plane_add(radius=5)
+    bpy.ops.mesh.primitive_plane_add(radius=3)
     plane = bpy.context.object
-
-    # def rand(L):
-    #     return 2.0 * L * (random.random() - 0.5)
-
-    # Add random jitter to camera position
-    # if args.camera_jitter > 0:
-    #     for i in range(3):
-    #         bpy.data.objects['Camera'].location[i] += rand(args.camera_jitter)
 
     # Figure out the left, up, and behind directions along the plane and record
     # them in the scene structure
@@ -562,20 +554,8 @@ def render_scene_with_tree(args,
     scene_struct['directions']['above'] = tuple(plane_up)
     scene_struct['directions']['below'] = tuple(-plane_up)
 
-    # Add random jitter to lamp positions
-    # if args.key_light_jitter > 0:
-    #     for i in range(3):
-    #         bpy.data.objects['Lamp_Key'].location[i] += rand(args.key_light_jitter)
-    # if args.back_light_jitter > 0:
-    #     for i in range(3):
-    #         bpy.data.objects['Lamp_Back'].location[i] += rand(args.back_light_jitter)
-    # if args.fill_light_jitter > 0:
-    #     for i in range(3):
-    #         bpy.data.objects['Lamp_Fill'].location[i] += rand(args.fill_light_jitter)
-
     # Now make some random objects
-    tree = sample_tree(tree_max_level, train=args.train_flag)
-    objects, blender_objects, tree = add_objects_from_tree(scene_struct, tree, args, camera)
+    objects, blender_objects, tree = add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
     # Render the scene and dump the scene data structure
     scene_struct['objects'] = objects
@@ -597,10 +577,11 @@ def render_scene_with_tree(args,
         bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
 
 
-def add_objects_from_tree(scene_struct, tree, args, camera):
+def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
     """
     Add random objects to the current blender scene
     """
+    tree = sample_tree(tree_max_level, train=args.train_flag)
 
     specified_objects = extract_objects(tree)
 
@@ -641,7 +622,7 @@ def add_objects_from_tree(scene_struct, tree, args, camera):
             if num_tries > args.max_retries:
                 for obj in blender_objects:
                     utils.delete_object(obj)
-                return add_objects_from_tree(scene_struct, tree, args, camera)
+                return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
             x = specified_obj.position[0] * scene_struct['directions']['right'][0] + specified_obj.position[1] * \
                                                                                      scene_struct['directions'][
@@ -658,6 +639,9 @@ def add_objects_from_tree(scene_struct, tree, args, camera):
                 dx, dy = x - xx, y - yy
                 dist = math.sqrt(dx * dx + dy * dy)
                 if dist - r - rr < args.min_dist:
+                    print((xx, yy, rr))
+                    print((x, y, r))
+                    print('dist is ', dist)
                     dists_good = False
                     break
                 for direction_name in ['left', 'right', 'front', 'behind']:
@@ -715,9 +699,6 @@ def add_objects_from_tree(scene_struct, tree, args, camera):
         utils.add_material(mat_name, Color=rgba)
 
         # Record data about the object in the scene data structure
-        print(type(obj.location))
-        print(obj.location)
-
         pixel_coords_lefttop, pixel_coords_rightbottom = get_bbox(camera, scene_struct, obj, obj_name_out, r)
 
         specified_obj.bbox = (pixel_coords_lefttop, pixel_coords_rightbottom)
@@ -754,7 +735,7 @@ def add_objects_from_tree(scene_struct, tree, args, camera):
         print('Some objects are occluded; replacing objects')
         for obj in blender_objects:
             utils.delete_object(obj)
-        return add_objects_from_tree(scene_struct, tree, args, camera)
+        return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
     return objects, blender_objects, tree
 
