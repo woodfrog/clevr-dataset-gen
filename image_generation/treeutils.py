@@ -16,31 +16,51 @@ from modules import *
 #                     help='number of samples for testing')
 # args = parser.parse_args()
 
+
 ######### hyperparameters ##########
 # max level of the tree
 max_level = 2
 
 # module list
 module_list = ['layout', 'describe', 'combine']
-module_dict = {}
 
 # children dict
-children_dict = {}
+children_dict = dict()
 children_dict['layout'] = 2
 children_dict['describe'] = 1
 children_dict['combine'] = 1
 
+# we will have two split dict for modules for designing a zero-shot setting
+
+module_dict_split1 = dict()
+module_dict_split2 = dict()
+
 # objects list
-module_dict['describe'] = ['cylinder', 'sphere', 'cube']
+module_dict_split1['describe'] = ['cylinder', 'sphere']
+module_dict_split2['describe'] = ['cube']
 
 # attributes list
-module_dict['combine'] = {'material': ['metal', 'rubber'],
-                          'color': ['green', 'blue', 'yellow', 'red', 'cyan', 'brown', 'gray', 'purple'],
-                          'size': ['large', 'small']}
+attribute_list = ['material', 'color', 'size']
+
+module_dict_split1['combine'] = {'material': ['metal'],
+                                 'color': ['green', 'blue', 'yellow', 'red'],
+                                 'size': ['small']}
+
+module_dict_split2['combine'] = {'material': ['rubber'],
+                                 'color': ['cyan', 'brown', 'gray', 'purple'],
+                                 'size': ['large']}
 
 # relations list
-module_dict['layout'] = ['top', 'left', 'right', 'bottom', ]
-# 'next-to', 'faraway'
+module_dict_split1['layout'] = ['top', 'left', 'faraway']
+module_dict_split2['layout'] = ['right', 'bottom', 'next-to']
+
+module_dicts = [module_dict_split1, module_dict_split2]
+
+pattern_map = {'describe': 0, 'material': 1, 'color': 2, 'size': 3, 'layout': 4}
+
+training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
+test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0)]
+
 
 # degree range: curently randomize this number, \
 # no need for input from the tree
@@ -56,18 +76,21 @@ module_dict['layout'] = ['top', 'left', 'right', 'bottom', ]
 #     return flag
 
 
-def expand_tree(tree, level, parent, memorylist, child_idx, max_level):
+def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_pattern):
     if parent is None or parent.function == 'layout':
         if level + 1 >= max_level:
             valid = [1]
         else:
             valid = [0, 1]
 
-        # sample module
+        # sample module, the module can be either layout or describe here
         module_id = random.randint(0, len(valid) - 1)
         tree.function = module_list[valid[module_id]]
 
         # sample content
+        dict_index = metadata_pattern[pattern_map[tree.function]]
+        module_dict = module_dicts[dict_index]
+
         word_id = random.randint(0, len(module_dict[tree.function]) - 1)
         tree.word = module_dict[tree.function][word_id]
 
@@ -89,7 +112,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level):
 
         for i in range(tree.num_children):
             tree.children.append(Tree())
-            tree.children[i] = expand_tree(tree.children[i], level + 1, tree, [], i, max_level)
+            tree.children[i] = expand_tree(tree.children[i], level + 1, tree, [], i, max_level, metadata_pattern)
 
     # must contain only one child node, which is a combine node
     elif parent.function == 'describe' or parent.function == 'combine':
@@ -100,13 +123,16 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level):
 
         # sample content
         # sample which attributes
-        if len(set(module_dict[tree.function].keys()) - set(memorylist)) <= 1:
+        if len(set(attribute_list) - set(memorylist)) <= 1:
             full_attribute = True
         else:
             full_attribute = False
 
-        attribute = random.sample(set(module_dict[tree.function].keys()) - set(memorylist), 1)[0]
+        attribute = random.sample(set(attribute_list) - set(memorylist), 1)[0]
         memorylist += [attribute]
+
+        dict_idx = metadata_pattern[pattern_map[attribute]]
+        module_dict = module_dicts[dict_idx]
         word_id = random.randint(0, len(module_dict[tree.function][attribute]) - 1)
         tree.word = module_dict[tree.function][attribute][word_id]
 
@@ -124,7 +150,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level):
 
             for i in range(tree.num_children):
                 tree.children.append(Tree())
-                tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_level)
+                tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_level, metadata_pattern)
 
     else:
         raise ValueError('Wrong function.')
@@ -170,7 +196,7 @@ def allign_tree(tree, level):
     elif tree.function == 'layout':
         tree.function_obj.set_children_pos()
         for i in range(tree.num_children):
-            allign_tree(tree.children[i], level+1)
+            allign_tree(tree.children[i], level + 1)
     else:
         pass
 
@@ -192,27 +218,33 @@ def extract_objects(tree):
     return objects
 
 
-def sample_tree(max_level):
+def sample_tree(max_level, train=True):
     tree = Tree()
-    tree = expand_tree(tree, 0, None, [], 0, max_level)
+    if train:
+        pattern = random.sample(training_patterns, 1)[0]  # sample a pattern for training data
+    else:
+        pattern = random.sample(test_patterns, 1)[0]  # sample a pattern for test data
+    tree = expand_tree(tree, 0, None, [], 0, max_level, pattern)
     allign_tree(tree, 0)
     return tree
 
+
 if __name__ == '__main__':
-    random.seed(12113)
-
-    # tree = Tree()
-    # tree = expand_tree(tree, 0, None, [], 0)
-    # allign_tree(tree)
-
-    num_sample = 1
-    trees = []
-    for i in range(num_sample):
-        treei = Tree()
-        treei = expand_tree(treei, 0, None, [], 0, max_level=2)
-        allign_tree(treei, 0)
-        objects = extract_objects(treei)
-        trees += [treei]
-        print(objects)
-
-    visualize_tree(trees)
+    pass
+    # random.seed(12113)
+    #
+    # # tree = Tree()
+    # # tree = expand_tree(tree, 0, None, [], 0)
+    # # allign_tree(tree)
+    #
+    # num_sample = 1
+    # trees = []
+    # for i in range(num_sample):
+    #     treei = Tree()
+    #     treei = expand_tree(treei, 0, None, [], 0, max_level=2)
+    #     allign_tree(treei, 0)
+    #     objects = extract_objects(treei)
+    #     trees += [treei]
+    #     print(objects)
+    #
+    # visualize_tree(trees)

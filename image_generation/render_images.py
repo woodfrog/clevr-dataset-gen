@@ -6,7 +6,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-import math, sys, random, argparse, json, os, tempfile
+import math, sys, random, argparse, json, os, tempfile, pickle
 from datetime import datetime as dt
 from collections import Counter
 from treeutils import sample_tree, extract_objects
@@ -103,6 +103,9 @@ parser.add_argument('--output_image_dir', default='../output/images/',
 parser.add_argument('--output_scene_dir', default='../output/scenes/',
                     help="The directory where output JSON scene structures will be stored. " +
                          "It will be created if it does not exist.")
+parser.add_argument('--output_tree_dir', default='../output/trees/',
+                    help="The directory where output trees will be stored. It will be " +
+                         "created if it does not exist.")
 parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json',
                     help="Path to write a single JSON file containing all scene information")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
@@ -153,6 +156,8 @@ parser.add_argument('--render_tile_size', default=256, type=int,
                          "quality of the rendered image but may affect the speed; CPU-based " +
                          "rendering may achieve better performance using smaller tile sizes " +
                          "while larger tile sizes may be optimal for GPU-based rendering.")
+parser.add_argument('--train_flag', default=True, type=bool,
+                    help="generate training or test")
 
 
 def main(args):
@@ -161,14 +166,19 @@ def main(args):
     img_template = '%s%%0%dd.png' % (prefix, num_digits)
     scene_template = '%s%%0%dd.json' % (prefix, num_digits)
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
+    tree_template = '%s%%0%dd.tree' % (prefix, num_digits)
     img_template = os.path.join(args.output_image_dir, img_template)
     scene_template = os.path.join(args.output_scene_dir, scene_template)
     blend_template = os.path.join(args.output_blend_dir, blend_template)
+    tree_template = os.path.join(args.output_tree_dir, tree_template)
+
 
     if not os.path.isdir(args.output_image_dir):
         os.makedirs(args.output_image_dir)
     if not os.path.isdir(args.output_scene_dir):
         os.makedirs(args.output_scene_dir)
+    if not os.path.isdir(args.output_tree_dir):
+        os.makedirs(args.output_tree_dir)
     if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
         os.makedirs(args.output_blend_dir)
 
@@ -176,19 +186,12 @@ def main(args):
     for i in range(args.num_images):
         img_path = img_template % (i + args.start_idx)
         scene_path = scene_template % (i + args.start_idx)
+        tree_path = tree_template % (i + args.start_idx)
         all_scene_paths.append(scene_path)
         blend_path = None
         if args.save_blendfiles == 1:
             blend_path = blend_template % (i + args.start_idx)
-        # num_objects = random.randint(args.min_objects, args.max_objects)
-        # render_scene(args,
-        #              num_objects=num_objects,
-        #              output_index=(i + args.start_idx),
-        #              output_split=args.split,
-        #              output_image=img_path,
-        #              output_scene=scene_path,
-        #              output_blendfile=blend_path,
-        #              )
+
         render_scene_with_tree(args,
                                tree_max_level=2,
                                output_index=(i + args.start_idx),
@@ -196,6 +199,7 @@ def main(args):
                                output_image=img_path,
                                output_scene=scene_path,
                                output_blendfile=blend_path,
+                               output_tree=tree_path
                                )
 
     # After rendering all images, combine the JSON files for each scene into a
@@ -476,6 +480,7 @@ def render_scene_with_tree(args,
                            output_image='render.png',
                            output_scene='render_json',
                            output_blendfile=None,
+                           output_tree='tree.tree'
                            ):
     # Load the main blendfile
     bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
@@ -537,7 +542,7 @@ def render_scene_with_tree(args,
     # them in the scene structure
     camera = bpy.data.objects['Camera']
     plane_normal = plane.data.vertices[0].normal
-    print(plane_normal, '!!!!!!!!!!!!!!!!!')
+    print('The plane normal is: ', plane_normal)
     cam_behind = camera.matrix_world.to_quaternion() * Vector((0, 0, -1))
     cam_left = camera.matrix_world.to_quaternion() * Vector((-1, 0, 0))
     cam_up = camera.matrix_world.to_quaternion() * Vector((0, 1, 0))
@@ -569,9 +574,8 @@ def render_scene_with_tree(args,
     #         bpy.data.objects['Lamp_Fill'].location[i] += rand(args.fill_light_jitter)
 
     # Now make some random objects
-    tree = sample_tree(tree_max_level)
-    specified_objects = extract_objects(tree)
-    objects, blender_objects = add_specified_objects(scene_struct, specified_objects, args, camera)
+    tree = sample_tree(tree_max_level, train=args.train_flag)
+    objects, blender_objects, tree = add_objects_from_tree(scene_struct, tree, args, camera)
 
     # Render the scene and dump the scene data structure
     scene_struct['objects'] = objects
@@ -583,6 +587,9 @@ def render_scene_with_tree(args,
         except Exception as e:
             print(e)
 
+    with open(output_tree, 'wb') as f:
+        pickle.dump(tree, f, protocol=2)
+
     with open(output_scene, 'w') as f:
         json.dump(scene_struct, f, indent=2)
 
@@ -590,10 +597,12 @@ def render_scene_with_tree(args,
         bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
 
 
-def add_specified_objects(scene_struct, specified_objects, args, camera):
+def add_objects_from_tree(scene_struct, tree, args, camera):
     """
     Add random objects to the current blender scene
     """
+
+    specified_objects = extract_objects(tree)
 
     # Load the property file
     with open(args.properties_json, 'r') as f:
@@ -632,7 +641,7 @@ def add_specified_objects(scene_struct, specified_objects, args, camera):
             if num_tries > args.max_retries:
                 for obj in blender_objects:
                     utils.delete_object(obj)
-                return add_specified_objects(scene_struct, specified_objects, args, camera)
+                return add_objects_from_tree(scene_struct, tree, args, camera)
 
             x = specified_obj.position[0] * scene_struct['directions']['right'][0] + specified_obj.position[1] * \
                                                                                      scene_struct['directions'][
@@ -711,6 +720,8 @@ def add_specified_objects(scene_struct, specified_objects, args, camera):
 
         pixel_coords_lefttop, pixel_coords_rightbottom = get_bbox(camera, scene_struct, obj, obj_name_out, r)
 
+        specified_obj.bbox = (pixel_coords_lefttop, pixel_coords_rightbottom)
+
         # object_multi_map = {'sphere': 1.2, 'cube': 1.5, 'cylinder': 1.2}
         #
         # left_top_move = object_multi_map[obj_name_out] * r * (
@@ -743,9 +754,9 @@ def add_specified_objects(scene_struct, specified_objects, args, camera):
         print('Some objects are occluded; replacing objects')
         for obj in blender_objects:
             utils.delete_object(obj)
-        return add_specified_objects(scene_struct, specified_objects, args, camera)
+        return add_objects_from_tree(scene_struct, tree, args, camera)
 
-    return objects, blender_objects
+    return objects, blender_objects, tree
 
 
 def get_bbox(camera, scene_struct, obj, obj_type, r):
@@ -785,8 +796,8 @@ def get_bbox(camera, scene_struct, obj, obj_type, r):
     points_2d = [utils.get_camera_coords(camera, location) for location in points_3d]
     x_cords = [location[0] for location in points_2d]
     y_cords = [location[1] for location in points_2d]
-    left_top = [min(x_cords), min(y_cords)]
-    right_bottom = [max(x_cords), max(y_cords)]
+    left_top = (min(x_cords), min(y_cords))
+    right_bottom = (max(x_cords), max(y_cords))
 
     return left_top, right_bottom
 

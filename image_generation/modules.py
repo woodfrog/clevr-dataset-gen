@@ -11,14 +11,23 @@ def position_add(pos1, pos2):
     return x1 + x2, y1 + y2
 
 
+def position_mul(pos, scalar):
+    x, y = pos
+    return x * scalar, y * scalar
+
+
 class Layout:
+    # set the bounds for object positions
+    random_lower_bound = 1
+    random_upper_bound = 2
     position_dict = {
-        'left': [(-2, 0), (2, 0)],
-        'right': [(2, 0), (-2, 0)],
-        'top': [(0, 2), (0, -2)],
-        'bottom': [(0, -2), (0, 2)],
-        'next-to': [(0, 0), (2, 0)],
-        'faraway': [(-3, -1), (1, 3)]
+        'left': ((-1, 0), (1, 0)),
+        'right': ((1, 0), (-1, 0)),
+        'top': ((0, 1), (0, -1)),
+        'bottom': ((0, -1), (0, 1)),
+        'next-to': [((0, 0), (2, 0)), ((2, 0), (0, 0)), ((0, 0), (0, 2)), ((0, 2), (0, 0)), ((-1, -1), (1, 1)),
+                    ((1, 1), (-1, -1))],
+        'faraway': [((-3, -3), (3, 3)), ((3, 3), (-3, -3)), ((3, -3), (-3, 3)), ((-3, 3), (3, -3))]
     }
 
     def __init__(self, layout_type):
@@ -32,8 +41,13 @@ class Layout:
 
     def set_children_pos(self):
         layout_setting = self.position_dict[self.layout_type]
-        self.left_child.change_position(position_add(self.position, layout_setting[0]))
-        self.right_child.change_position(position_add(self.position, layout_setting[1]))
+        if isinstance(layout_setting, list):
+            layout_setting = random.sample(layout_setting, 1)[0]
+        scaling = 1.0
+        if self.layout_type in ['left', 'right', 'top', 'bottom']:
+            scaling = random.uniform(self.random_lower_bound, self.random_upper_bound)
+        self.left_child.change_position(position_add(self.position, position_mul(layout_setting[0], scaling)))
+        self.right_child.change_position(position_add(self.position, position_mul(layout_setting[1], scaling)))
 
 
 class Describe:
@@ -44,6 +58,7 @@ class Describe:
         self.attributes = dict()
         self.position = (0, 0)  # position: tuple of (x,y)
         self.size = 0
+        self.bbox = None  # 2D bbox coordinates
 
     def __repr__(self):
         return '<Describe, obj_type:{}>'.format(self.object_type)
