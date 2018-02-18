@@ -156,8 +156,8 @@ parser.add_argument('--render_tile_size', default=256, type=int,
                          "quality of the rendered image but may affect the speed; CPU-based " +
                          "rendering may achieve better performance using smaller tile sizes " +
                          "while larger tile sizes may be optimal for GPU-based rendering.")
-parser.add_argument('--train_flag', default=True, type=bool,
-                    help="generate training or test")
+parser.add_argument('--train_flag', default=1, type=int,
+                    help="generate training or test, set to 0 for testing")
 
 
 def main(args):
@@ -168,7 +168,7 @@ def main(args):
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
     tree_template = '%s%%0%dd.tree' % (prefix, num_digits)
 
-    if args.train_flag:
+    if args.train_flag == 1:
         split_output_image_dir = os.path.join(args.output_image_dir, 'train/')
         split_output_tree_dir = os.path.join(args.output_tree_dir, 'train/')
         split_output_scene_dir = os.path.join(args.output_scene_dir, 'train/')
@@ -200,19 +200,26 @@ def main(args):
     if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
         os.makedirs(args.output_blend_dir)
 
+    all_images = list(sorted(os.listdir(split_output_image_dir)))
+    if len(all_images) > 0:
+        max_idx = int(all_images[-1][10:-4])
+        start_idx = max_idx + 1
+    else:
+        start_idx = args.start_idx
+
     all_scene_paths = []
     for i in range(args.num_images):
-        img_path = img_template % (i + args.start_idx)
-        scene_path = scene_template % (i + args.start_idx)
-        tree_path = tree_template % (i + args.start_idx)
+        img_path = img_template % (i + start_idx)
+        scene_path = scene_template % (i + start_idx)
+        tree_path = tree_template % (i + start_idx)
         all_scene_paths.append(scene_path)
         blend_path = None
         if args.save_blendfiles == 1:
-            blend_path = blend_template % (i + args.start_idx)
+            blend_path = blend_template % (i + start_idx)
 
         render_scene_with_tree(args,
                                tree_max_level=3,
-                               output_index=(i + args.start_idx),
+                               output_index=(i + start_idx),
                                output_split=args.split,
                                output_image=img_path,
                                output_scene=scene_path,
@@ -643,11 +650,11 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
                 return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
             x = specified_obj.position[0] * scene_struct['directions']['right'][0] + specified_obj.position[1] * \
-                                                                                     scene_struct['directions'][
-                                                                                         'front'][0]
+                scene_struct['directions'][
+                    'front'][0]
             y = specified_obj.position[0] * scene_struct['directions']['right'][1] + specified_obj.position[1] * \
-                                                                                     scene_struct['directions'][
-                                                                                         'front'][1]
+                scene_struct['directions'][
+                    'front'][1]
 
             # Check to make sure the new object is further than min_dist from all
             # other objects, and further than margin along the four cardinal directions
@@ -717,25 +724,13 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
         pixel_coords_lefttop, pixel_coords_rightbottom = get_bbox(camera, scene_struct, obj, obj_name_out, r)
 
         # guarantee that objects are all in the image
-        if pixel_coords_lefttop[0] < 0 or pixel_coords_lefttop[1] < 0 or pixel_coords_rightbottom[0] >= args.width or pixel_coords_rightbottom[1] >= args.height:
+        if pixel_coords_lefttop[0] < 0 or pixel_coords_lefttop[1] < 0 or pixel_coords_rightbottom[0] >= args.width or \
+                pixel_coords_rightbottom[1] >= args.height:
             for obj in blender_objects:
                 utils.delete_object(obj)
             return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
         specified_obj.bbox = (pixel_coords_lefttop, pixel_coords_rightbottom)
-
-        # object_multi_map = {'sphere': 1.2, 'cube': 1.5, 'cylinder': 1.2}
-        #
-        # left_top_move = object_multi_map[obj_name_out] * r * (
-        # Vector(scene_struct['directions']['left']) + Vector(scene_struct['directions']['above']) + Vector(
-        #     scene_struct['directions']['behind']))
-        #
-        # right_bottom_move = object_multi_map[obj_name_out] * r * (
-        # Vector(scene_struct['directions']['right']) + Vector(scene_struct['directions']['below']) + Vector(
-        #     scene_struct['directions']['front']))
-
-        # pixel_coords_lefttop = utils.get_camera_coords(camera, obj.location + left_top_move)
-        # pixel_coords_rightbottom = utils.get_camera_coords(camera, obj.location + right_bottom_move)
 
         objects.append({
             'shape': obj_name_out,
@@ -763,35 +758,28 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
 
 def get_bbox(camera, scene_struct, obj, obj_type, r):
     if obj_type == 'sphere':
-        points_3d = [obj.location + r * Vector(scene_struct['directions']['below']),
-                     obj.location + r * Vector(scene_struct['directions']['above']),
-                     obj.location + r * Vector(scene_struct['directions']['left']),
-                     obj.location + r * Vector(scene_struct['directions']['right'])
-                     ]
+        points_3d = [obj.location + r * vector for vector in get_sphere_unit_vectors(scene_struct['directions'])]
     elif obj_type == 'cube':
-        points_3d = [obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['left']) + Vector(scene_struct['directions']['front'])),
-                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['right']) + Vector(scene_struct['directions']['front'])),
-                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['left']) + Vector(scene_struct['directions']['front'])),
-                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['right']) + Vector(scene_struct['directions']['front'])),
-                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['left']) + Vector(scene_struct['directions']['behind'])),
-                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['right'])+ Vector(scene_struct['directions']['behind'])),
-                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['left'])+ Vector(scene_struct['directions']['behind'])),
-                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['right'])+ Vector(scene_struct['directions']['behind']))
+        points_3d = [obj.location + r * (
+                Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['left']) + Vector(
+                    scene_struct['directions']['front'])),
+                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(
+                         scene_struct['directions']['right']) + Vector(scene_struct['directions']['front'])),
+                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(
+                         scene_struct['directions']['left']) + Vector(scene_struct['directions']['front'])),
+                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(
+                         scene_struct['directions']['right']) + Vector(scene_struct['directions']['front'])),
+                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(
+                         scene_struct['directions']['left']) + Vector(scene_struct['directions']['behind'])),
+                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(
+                         scene_struct['directions']['right']) + Vector(scene_struct['directions']['behind'])),
+                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(
+                         scene_struct['directions']['left']) + Vector(scene_struct['directions']['behind'])),
+                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(
+                         scene_struct['directions']['right']) + Vector(scene_struct['directions']['behind']))
                      ]
     elif obj_type == 'cylinder':
-        points_3d = [obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['left'])),
-                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['left'])),
-                     obj.location + r * (Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['right'])),
-                     obj.location + r * (Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['right'])),
-                     obj.location + r * (
-                     Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['front'])),
-                     obj.location + r * (
-                     Vector(scene_struct['directions']['below']) + Vector(scene_struct['directions']['behind'])),
-                     obj.location + r * (
-                     Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['front'])),
-                     obj.location + r * (
-                     Vector(scene_struct['directions']['above']) + Vector(scene_struct['directions']['behind'])),
-                     ]
+        points_3d = [obj.location + r * vector for vector in get_cylinder_unit_vectors(scene_struct['directions'])]
     else:
         raise RuntimeError('invalid object type name')
 
@@ -803,6 +791,31 @@ def get_bbox(camera, scene_struct, obj, obj_type, r):
 
     return left_top, right_bottom
 
+
+def get_cylinder_unit_vectors(directions):
+    points_3d = list()
+    for i in range(30):
+        theta = (2 * i * math.pi) / 30
+        points_3d.append(
+            math.cos(theta) * Vector(directions['right']) + math.sin(theta) * Vector(directions['front']) + Vector(
+                directions['above']))
+        points_3d.append(
+            math.cos(theta) * Vector(directions['right']) + math.sin(theta) * Vector(directions['front']) + Vector(
+                directions['below']))
+    return points_3d
+
+
+def get_sphere_unit_vectors(directions):
+    points_3d = list()
+    for i in range(30):
+        alpha = i * math.pi / 30 - math.pi / 2  # range in (-pi/2, pi/2)
+        for j in range(30):
+            theta = (2 * j * math.pi) / 30  # range in (0, 2*pi)
+            points_3d.append(
+                math.cos(alpha) * math.cos(theta) * Vector(directions['right']) + math.cos(alpha) * math.sin(theta) *
+                Vector(directions['front']) + math.sin(alpha) * Vector(directions['above']))
+
+    return points_3d
 
 
 def compute_all_relationships(scene_struct, eps=0.2):
@@ -937,3 +950,9 @@ if __name__ == '__main__':
         print('arguments like this:')
         print()
         print('python render_images.py --help')
+
+    # import pickle
+    #
+    # with open('../output/trees/train/CLEVR_new_000000.tree', 'rb') as f:
+    #     data = pickle.load(f)
+    # print(data.function_obj)
