@@ -12,7 +12,7 @@ def position_mul(pos, scalar):
     return x * scalar, y * scalar
 
 
-class Layout:
+class Layout(object):
     # set the bounds for object positions
     random_lower_bound = 1.0
     random_upper_bound = 1.5
@@ -46,7 +46,7 @@ class Layout:
         self.right_child.change_position(position_add(self.position, position_mul(layout_setting[1], scaling)))
 
 
-class Describe:
+class Describe(object):
     random_pos_range = 2
 
     def __init__(self, object_type):
@@ -74,7 +74,7 @@ class Describe:
         self.position = (x, y)
 
 
-class Combine:
+class Combine(object):
     def __init__(self, attr_type, val):
         self.carrier = None
         self.attr_type = attr_type

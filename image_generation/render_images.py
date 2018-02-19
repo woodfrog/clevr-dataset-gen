@@ -6,10 +6,13 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
+import _init_paths
 import math, sys, random, argparse, json, os, tempfile, pickle
 from datetime import datetime as dt
 from collections import Counter
-from treeutils import sample_tree, extract_objects
+from treeutils import sample_tree, extract_objects, refine_tree_info, remove_function_obj
+from modules import Combine, Layout, Describe
+from lib.tree import Tree
 
 """
 Renders random scenes using Blender, each with with a random number of objects;
@@ -581,6 +584,10 @@ def render_scene_with_tree(args,
 
     # Now make some random objects
     objects, blender_objects, tree = add_objects_from_tree(scene_struct, args, camera, tree_max_level)
+
+    # refine the tree, remove function_objs
+    tree = refine_tree_info(tree)
+    tree = remove_function_obj(tree)
 
     # Render the scene and dump the scene data structure
     scene_struct['objects'] = objects

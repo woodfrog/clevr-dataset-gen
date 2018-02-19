@@ -4,8 +4,9 @@ import sys
 import argparse
 import os.path as osp
 import random
+import numpy as np
 from lib.tree import Tree
-from modules import *
+from modules import Layout, Combine, Describe
 
 # parser = argparse.ArgumentParser(description='generate trees for CLEVR dataset')
 # parser.add_argument('--output_dir', type=str, default='',
@@ -61,20 +62,6 @@ pattern_map = {'describe': 0, 'material': 1, 'color': 2, 'size': 3, 'layout': 4}
 training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
 test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0, 0, 0), (0, 1, 1, 1, 0), (1, 0, 0, 0, 1),
                  (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
-
-
-# degree range: curently randomize this number, \
-# no need for input from the tree
-# deg_range = [0, 360]
-
-# def get_flag(level, maxlevel):
-#     if level + 1 >= max_level:
-#         flag = 0
-#     else:
-#         # flag = random.randint(0, 1)
-#         flag = 1
-#
-#     return flag
 
 
 def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_pattern):
@@ -231,6 +218,59 @@ def sample_tree(max_level, train=True):
     tree = expand_tree(tree, 0, None, [], 0, max_level, pattern)
     allign_tree(tree, 0)
     return tree
+
+
+def refine_tree_info(tree):
+    tree = _set_describe_bbox(tree)
+    tree = _set_layout_bbox(tree)
+    return tree
+
+
+def remove_function_obj(tree):
+    tree = _remove_function_obj(tree)
+    return tree
+
+
+def _remove_function_obj(tree):
+    if hasattr(tree, 'function_obj'):
+        delattr(tree, 'function_obj')
+    for child in tree.children:
+        _remove_function_obj(child)
+    return tree
+
+def _set_describe_bbox(tree):
+    function_obj = tree.function_obj
+    # set the bbox for the tree node
+    if hasattr(function_obj, 'bbox'):
+        left_top_coord, right_bottom_coord = function_obj.bbox
+        bbox = (left_top_coord[0], left_top_coord[1], right_bottom_coord[0] - left_top_coord[0], right_bottom_coord[1] - left_top_coord[1])
+        tree.bbox = np.array(bbox)
+
+    for child in tree.children:
+        _set_describe_bbox(child)
+    return tree
+
+
+def _set_layout_bbox(tree):
+    if tree.function != 'layout':
+        return tree
+    else:
+        for child in tree.children:
+            _set_layout_bbox(child)
+        # set the bbox for layout module
+        left_child_bbox = tree.children[0].bbox
+        right_child_bbox = tree.children[1].bbox
+        tree.bbox = np.array(_combine_bbox(left_child_bbox, right_child_bbox))
+
+    return tree
+
+
+def _combine_bbox(bbox1, bbox2):
+    left = min(bbox1[0], bbox2[0])
+    top = min(bbox1[1], bbox2[1])
+    right = max(bbox1[0] + bbox1[2], bbox2[0] + bbox2[2])
+    bottom = max(bbox1[1] + bbox1[3], bbox2[1] + bbox2[3])
+    return [left, top, right-left, bottom-top]
 
 
 if __name__ == '__main__':
