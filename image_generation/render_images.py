@@ -81,7 +81,7 @@ parser.add_argument('--margin', default=0.0, type=float,
                     help="Along all cardinal directions (left, right, front, back), all " +
                          "objects will be at least this distance apart. This makes resolving " +
                          "spatial relationships slightly less ambiguous.")
-parser.add_argument('--min_pixels_per_object', default=30, type=int,
+parser.add_argument('--min_pixels_per_object', default=50, type=int,
                     help="All objects will have at least this many visible pixels in the " +
                          "final rendered images; this ensures that no objects are fully " +
                          "occluded by other objects.")
@@ -163,6 +163,8 @@ parser.add_argument('--render_tile_size', default=256, type=int,
                          "while larger tile sizes may be optimal for GPU-based rendering.")
 parser.add_argument('--train_flag', default=1, type=int,
                     help="generate training or test, set to 0 for testing")
+parser.add_argument('--zero_shot', default=0, type=int,
+                    help="Whether to use zero-shot setting when generate the data")
 
 
 def main(args):
@@ -615,7 +617,7 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
     """
     Add random objects to the current blender scene
     """
-    tree = sample_tree(tree_max_level, train=args.train_flag)
+    tree = sample_tree(tree_max_level, zero_shot=args.zero_shot, train=args.train_flag)
 
     specified_objects = extract_objects(tree)
 

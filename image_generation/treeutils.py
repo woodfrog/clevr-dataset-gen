@@ -35,10 +35,13 @@ children_dict['combine'] = 1
 
 module_dict_split1 = dict()
 module_dict_split2 = dict()
+module_dict_all = dict()
 
+# Zero shot split
 # objects list
 module_dict_split1['describe'] = ['cylinder', 'sphere']
 module_dict_split2['describe'] = ['cube', 'sphere']
+module_dict_all['describe'] = ['cylinder', 'cube', 'sphere']
 
 # attributes list
 attribute_list = ['material', 'color', 'size']
@@ -51,20 +54,26 @@ module_dict_split2['combine'] = {'material': ['rubber'],
                                  'color': ['cyan', 'brown', 'gray', 'purple'],
                                  'size': ['small']}
 
+module_dict_all['combine'] = {'material': ['rubber', 'metal'],
+                              'color': ['cyan', 'brown', 'gray', 'purple', 'green', 'blue', 'yellow', 'red'],
+                              'size': ['small', 'large']}
 # relations list
 module_dict_split1['layout'] = ['front', 'left', 'left-front', 'right-front']
 module_dict_split2['layout'] = ['behind', 'right', 'right-behind', 'left-behind']
+module_dict_all['layout'] = ['behind', 'front', 'right', 'left', 'right-behind', 'left-front', 'left-behind',
+                             'right-front']
 
-module_dicts = [module_dict_split1, module_dict_split2]
+module_dicts_zeroshot = [module_dict_split1, module_dict_split2]
+module_dict_normal = module_dict_all
 
 pattern_map = {'describe': 0, 'material': 1, 'color': 2, 'size': 3, 'layout': 4}
 
-training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
-test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0, 0, 0), (0, 1, 1, 1, 0), (1, 0, 0, 0, 1),
-                 (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
+zs_training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
+zs_test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0, 0, 0), (0, 1, 1, 1, 0),
+                    (1, 0, 0, 0, 1), (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
 
 
-def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_pattern):
+def expand_tree(tree, level, parent, memorylist, child_idx, max_level, zero_shot=False, metadata_pattern=None):
     if parent is None or parent.function == 'layout':
         if level + 1 >= max_level:
             valid = [1]
@@ -76,8 +85,12 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_
         tree.function = module_list[valid[module_id]]
 
         # sample content
-        dict_index = metadata_pattern[pattern_map[tree.function]]
-        module_dict = module_dicts[dict_index]
+        if zero_shot:
+            assert(metadata_pattern is not None)
+            dict_index = metadata_pattern[pattern_map[tree.function]]
+            module_dict = module_dicts[dict_index]
+        else:
+            module_dict = module_dict_normal
 
         word_id = random.randint(0, len(module_dict[tree.function]) - 1)
         tree.word = module_dict[tree.function][word_id]
@@ -122,8 +135,12 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_
         attribute = random.sample(set(attribute_list) - set(memorylist), 1)[0]
         memorylist += [attribute]
 
-        dict_idx = metadata_pattern[pattern_map[attribute]]
-        module_dict = module_dicts[dict_idx]
+        if zero_shot:
+            dict_idx = metadata_pattern[pattern_map[attribute]]
+            module_dict = module_dicts[dict_idx]
+        else:
+            module_dict = module_dict_normal
+
         word_id = random.randint(0, len(module_dict[tree.function][attribute]) - 1)
         tree.word = module_dict[tree.function][attribute][word_id]
 
@@ -141,8 +158,8 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, metadata_
 
             for i in range(tree.num_children):
                 tree.children.append(Tree())
-                tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_level, metadata_pattern)
-
+                tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_level,
+                                               metadata_pattern)
     else:
         raise ValueError('Wrong function.')
     return tree
@@ -175,7 +192,7 @@ def _visualize_tree(tree, level):
 
 def allign_tree(tree, level):
     """
-        A pre-order traversal
+        A pre-order traversal, set the position of tree nodes according to the layouts
     :param tree:
     :return:
     """
@@ -209,13 +226,17 @@ def extract_objects(tree):
     return objects
 
 
-def sample_tree(max_level, train=True):
+def sample_tree(max_level, zero_shot=False, train=True):
     tree = Tree()
-    if train:
-        pattern = random.sample(training_patterns, 1)[0]  # sample a pattern for training data
+    if zero_shot:
+        if train:
+            pattern = random.sample(training_patterns, 1)[0]  # sample a pattern for training data
+        else:
+            pattern = random.sample(test_patterns, 1)[0]  # sample a pattern for test data
+        tree = expand_tree(tree, 0, None, [], 0, max_level, zero_shot=True, metadata_pattern=pattern)
     else:
-        pattern = random.sample(test_patterns, 1)[0]  # sample a pattern for test data
-    tree = expand_tree(tree, 0, None, [], 0, max_level, pattern)
+        tree = expand_tree(tree, 0, None, [], 0, max_level, zero_shot=False)
+
     allign_tree(tree, 0)
     return tree
 
@@ -238,12 +259,14 @@ def _remove_function_obj(tree):
         _remove_function_obj(child)
     return tree
 
+
 def _set_describe_bbox(tree):
     function_obj = tree.function_obj
     # set the bbox for the tree node
     if hasattr(function_obj, 'bbox'):
         left_top_coord, right_bottom_coord = function_obj.bbox
-        bbox = (left_top_coord[0], left_top_coord[1], right_bottom_coord[0] - left_top_coord[0], right_bottom_coord[1] - left_top_coord[1])
+        bbox = (left_top_coord[0], left_top_coord[1], right_bottom_coord[0] - left_top_coord[0],
+                right_bottom_coord[1] - left_top_coord[1])
         tree.bbox = np.array(bbox)
 
     for child in tree.children:
@@ -270,7 +293,7 @@ def _combine_bbox(bbox1, bbox2):
     top = min(bbox1[1], bbox2[1])
     right = max(bbox1[0] + bbox1[2], bbox2[0] + bbox2[2])
     bottom = max(bbox1[1] + bbox1[3], bbox2[1] + bbox2[3])
-    return [left, top, right-left, bottom-top]
+    return [left, top, right - left, bottom - top]
 
 
 if __name__ == '__main__':
