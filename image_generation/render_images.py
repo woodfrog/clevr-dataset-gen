@@ -75,7 +75,7 @@ parser.add_argument('--max_objects', default=10, type=int,
                     help="The maximum number of objects to place in each scene")
 parser.add_argument('--min_dist', default=0.125, type=float,
                     help="The minimum allowed distance between object centers")
-parser.add_argument('--min_obj_2d_size', default=12, type=float,
+parser.add_argument('--min_obj_2d_size', default=8, type=float,
                     help="The minimum allowed 2d bounding box size of generated objects")
 parser.add_argument('--margin', default=0.0, type=float,
                     help="Along all cardinal directions (left, right, front, back), all " +
