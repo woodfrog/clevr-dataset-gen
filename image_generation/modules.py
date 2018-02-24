@@ -14,7 +14,7 @@ def position_mul(pos, scalar):
 
 class Layout(object):
     # set the bounds for object positions
-    random_lower_bound = 1.0
+    random_lower_bound = 0.9
     random_upper_bound = 1.5
     position_dict = {
         'left': ((-1, 0), (1, 0)),

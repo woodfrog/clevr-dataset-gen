@@ -81,7 +81,7 @@ parser.add_argument('--margin', default=0.0, type=float,
                     help="Along all cardinal directions (left, right, front, back), all " +
                          "objects will be at least this distance apart. This makes resolving " +
                          "spatial relationships slightly less ambiguous.")
-parser.add_argument('--min_pixels_per_object', default=100, type=int,
+parser.add_argument('--min_pixels_per_object', default=30, type=int,
                     help="All objects will have at least this many visible pixels in the " +
                          "final rendered images; this ensures that no objects are fully " +
                          "occluded by other objects.")
@@ -223,7 +223,7 @@ def main(args):
             blend_path = blend_template % (i + start_idx)
 
         render_scene_with_tree(args,
-                               tree_max_level=3,
+                               tree_max_level=2,
                                output_index=(i + start_idx),
                                output_split=args.split,
                                output_image=img_path,
@@ -695,7 +695,7 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
             if dists_good and margins_good:
                 break
 
-        # Choose random color and shape
+        # Choose color and shape
         if shape_color_combos is None:
             # obj_name, obj_name_out = random.choice(object_mapping)
             obj_name_out = specified_obj.object_type

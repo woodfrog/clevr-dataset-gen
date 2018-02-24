@@ -53,7 +53,7 @@ module_dict_split2['combine'] = {'material': ['rubber'],
 
 # relations list
 module_dict_split1['layout'] = ['front', 'left', 'left-front', 'right-front']
-module_dict_split2['layout'] = ['right', 'behind', 'left-behind', 'right-behind']
+module_dict_split2['layout'] = ['behind', 'right', 'right-behind', 'left-behind']
 
 module_dicts = [module_dict_split1, module_dict_split2]
 
