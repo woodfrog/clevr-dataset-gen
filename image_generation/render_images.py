@@ -73,13 +73,15 @@ parser.add_argument('--min_objects', default=3, type=int,
                     help="The minimum number of objects to place in each scene")
 parser.add_argument('--max_objects', default=10, type=int,
                     help="The maximum number of objects to place in each scene")
-parser.add_argument('--min_dist', default=0.25, type=float,
+parser.add_argument('--min_dist', default=0.125, type=float,
                     help="The minimum allowed distance between object centers")
+parser.add_argument('--min_obj_2d_size', default=12, type=float,
+                    help="The minimum allowed 2d bounding box size of generated objects")
 parser.add_argument('--margin', default=0.0, type=float,
                     help="Along all cardinal directions (left, right, front, back), all " +
                          "objects will be at least this distance apart. This makes resolving " +
                          "spatial relationships slightly less ambiguous.")
-parser.add_argument('--min_pixels_per_object', default=200, type=int,
+parser.add_argument('--min_pixels_per_object', default=100, type=int,
                     help="All objects will have at least this many visible pixels in the " +
                          "final rendered images; this ensures that no objects are fully " +
                          "occluded by other objects.")
@@ -100,16 +102,16 @@ parser.add_argument('--split', default='new',
                     help="Name of the split for which we are rendering. This will be added to " +
                          "the names of rendered images, and will also be stored in the JSON " +
                          "scene structure for each image.")
-parser.add_argument('--output_image_dir', default='../output/images/',
+parser.add_argument('--output_image_dir', default='../output/SIZE64/images/',
                     help="The directory where output images will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_dir', default='../output/scenes/',
+parser.add_argument('--output_scene_dir', default='../output/SIZE64/scenes/',
                     help="The directory where output JSON scene structures will be stored. " +
                          "It will be created if it does not exist.")
-parser.add_argument('--output_tree_dir', default='../output/trees/',
+parser.add_argument('--output_tree_dir', default='../output/SIZE64/trees/',
                     help="The directory where output trees will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json',
+parser.add_argument('--output_scene_file', default='../output/SIZE64/CLEVR_scenes.json',
                     help="Path to write a single JSON file containing all scene information")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
                     help="The directory where blender scene files will be stored, if the " +
@@ -135,9 +137,9 @@ parser.add_argument('--use_gpu', default=0, type=int,
                     help="Setting --use_gpu 1 enables GPU-accelerated rendering using CUDA. " +
                          "You must have an NVIDIA GPU with the CUDA toolkit installed for " +
                          "to work.")
-parser.add_argument('--width', default=128, type=int,
+parser.add_argument('--width', default=64, type=int,
                     help="The width (in pixels) for the rendered images")
-parser.add_argument('--height', default=128, type=int,
+parser.add_argument('--height', default=64, type=int,
                     help="The height (in pixels) for the rendered images")
 parser.add_argument('--key_light_jitter', default=1.0, type=float,
                     help="The magnitude of random jitter to add to the key light position.")
@@ -737,6 +739,12 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
                 utils.delete_object(obj)
             return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
 
+        # remove objects that are too small
+        if not is_valid_bbox(pixel_coords_lefttop, pixel_coords_rightbottom, size_threshold=args.min_obj_2d_size):
+            for obj in blender_objects:
+                utils.delete_object(obj)
+            return add_objects_from_tree(scene_struct, args, camera, tree_max_level)
+
         specified_obj.bbox = (pixel_coords_lefttop, pixel_coords_rightbottom)
 
         objects.append({
@@ -850,6 +858,15 @@ def compute_all_relationships(scene_struct, eps=0.2):
                     related.add(j)
             all_relationships[name].append(sorted(list(related)))
     return all_relationships
+
+
+def is_valid_bbox(left_top_coord, right_bottom_coord, size_threshold):
+    width = right_bottom_coord[0] - left_top_coord[0]
+    height = right_bottom_coord[1] - left_top_coord[1]
+    if min(width, height) >= size_threshold:
+        return True
+    else:
+        return False
 
 
 def check_visibility(blender_objects, min_pixels_per_object):
