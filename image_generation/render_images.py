@@ -102,16 +102,16 @@ parser.add_argument('--split', default='new',
                     help="Name of the split for which we are rendering. This will be added to " +
                          "the names of rendered images, and will also be stored in the JSON " +
                          "scene structure for each image.")
-parser.add_argument('--output_image_dir', default='../output/SIZE64/images/',
+parser.add_argument('--output_image_dir', default='../output/CLEVR_128/images/',
                     help="The directory where output images will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_dir', default='../output/SIZE64/scenes/',
+parser.add_argument('--output_scene_dir', default='../output/CLEVR_128/scenes/',
                     help="The directory where output JSON scene structures will be stored. " +
                          "It will be created if it does not exist.")
-parser.add_argument('--output_tree_dir', default='../output/SIZE64/trees/',
+parser.add_argument('--output_tree_dir', default='../output/CLEVR_128/trees/',
                     help="The directory where output trees will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_file', default='../output/SIZE64/CLEVR_scenes.json',
+parser.add_argument('--output_scene_file', default='../output/CLEVR_128/CLEVR_scenes.json',
                     help="Path to write a single JSON file containing all scene information")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
                     help="The directory where blender scene files will be stored, if the " +
@@ -137,9 +137,9 @@ parser.add_argument('--use_gpu', default=0, type=int,
                     help="Setting --use_gpu 1 enables GPU-accelerated rendering using CUDA. " +
                          "You must have an NVIDIA GPU with the CUDA toolkit installed for " +
                          "to work.")
-parser.add_argument('--width', default=64, type=int,
+parser.add_argument('--width', default=128, type=int,
                     help="The width (in pixels) for the rendered images")
-parser.add_argument('--height', default=64, type=int,
+parser.add_argument('--height', default=128, type=int,
                     help="The height (in pixels) for the rendered images")
 parser.add_argument('--key_light_jitter', default=1.0, type=float,
                     help="The magnitude of random jitter to add to the key light position.")
@@ -165,6 +165,8 @@ parser.add_argument('--train_flag', default=1, type=int,
                     help="generate training or test, set to 0 for testing")
 parser.add_argument('--zero_shot', default=0, type=int,
                     help="Whether to use zero-shot setting when generate the data")
+parser.add_argument('--add_layout_prob', default=0.8, type=float,
+                    help="probability of adding an extra layout layer")
 
 
 def main(args):
@@ -175,7 +177,17 @@ def main(args):
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
     tree_template = '%s%%0%dd.tree' % (prefix, num_digits)
 
-    if args.train_flag == 1:
+    if args.train_flag != 0:
+        args.train_flag = True
+    else:
+        args.train_flag = False
+
+    if args.zero_shot != 0:
+        args.zero_shot = True
+    else:
+        args.zero_shot = False
+
+    if args.train_flag:
         split_output_image_dir = os.path.join(args.output_image_dir, 'train/')
         split_output_tree_dir = os.path.join(args.output_tree_dir, 'train/')
         split_output_scene_dir = os.path.join(args.output_scene_dir, 'train/')
@@ -225,7 +237,7 @@ def main(args):
             blend_path = blend_template % (i + start_idx)
 
         render_scene_with_tree(args,
-                               tree_max_level=2,
+                               tree_max_level=3,
                                output_index=(i + start_idx),
                                output_split=args.split,
                                output_image=img_path,
@@ -506,7 +518,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
 
 
 def render_scene_with_tree(args,
-                           tree_max_level=2,
+                           tree_max_level=3,
                            output_index=0,
                            output_split='none',
                            output_image='render.png',
@@ -617,7 +629,7 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
     """
     Add random objects to the current blender scene
     """
-    tree = sample_tree(tree_max_level, zero_shot=args.zero_shot, train=args.train_flag)
+    tree = sample_tree(tree_max_level, add_layout_prob=args.add_layout_prob, zero_shot=args.zero_shot, train=args.train_flag)
 
     specified_objects = extract_objects(tree)
 

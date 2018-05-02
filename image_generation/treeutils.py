@@ -19,8 +19,6 @@ from modules import Layout, Combine, Describe
 
 
 ######### hyperparameters ##########
-# max level of the tree
-max_level = 2
 
 # module list
 module_list = ['layout', 'describe', 'combine']
@@ -58,9 +56,9 @@ module_dict_all['combine'] = {'material': ['rubber', 'metal'],
                               'color': ['cyan', 'brown', 'gray', 'purple', 'green', 'blue', 'yellow', 'red'],
                               'size': ['small', 'large']}
 # relations list
-module_dict_split1['layout'] = ['front', 'left', 'left-front', 'right-front']
-module_dict_split2['layout'] = ['behind', 'right', 'right-behind', 'left-behind']
-module_dict_all['layout'] = ['behind', 'front', 'right', 'left', 'right-behind', 'left-front', 'left-behind',
+module_dict_split1['layout'] = ['left', 'left-front', 'right-front']
+module_dict_split2['layout'] = ['right', 'right-behind', 'left-behind']
+module_dict_all['layout'] = ['right', 'left', 'right-behind', 'left-front', 'left-behind',
                              'right-front']
 
 module_dicts_zeroshot = [module_dict_split1, module_dict_split2]
@@ -73,22 +71,29 @@ zs_test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0,
                     (1, 0, 0, 0, 1), (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
 
 
-def expand_tree(tree, level, parent, memorylist, child_idx, max_level, zero_shot=False, metadata_pattern=None):
-    if parent is None or parent.function == 'layout':
-        if level + 1 >= max_level:
-            valid = [1]
+def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, add_layout_prob, train, zero_shot=False):
+    if zero_shot:
+        if train:
+            metadata_pattern = random.sample(zs_training_patterns, 1)[0]  # sample a pattern for training data
         else:
-            valid = [0, 1]
-
+            metadata_pattern = random.sample(zs_test_patterns, 1)[0]  # sample a pattern for test data
+    if parent is None or parent.function == 'layout':
         # sample module, the module can be either layout or describe here
-        module_id = random.randint(0, len(valid) - 1)
-        tree.function = module_list[valid[module_id]]
+        if level + 1 > max_layout_level:
+            module_idx = 1
+        else:
+            rand = random.random()
+            if rand >= 1 - add_layout_prob:
+                module_idx = 0
+            else:
+                module_idx = 1
+        tree.function = module_list[module_idx]
 
         # sample content
         if zero_shot:
-            assert(metadata_pattern is not None)
+            assert (metadata_pattern is not None)
             dict_index = metadata_pattern[pattern_map[tree.function]]
-            module_dict = module_dicts[dict_index]
+            module_dict = module_dicts_zeroshot[dict_index]
         else:
             module_dict = module_dict_normal
 
@@ -102,20 +107,18 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, zero_shot
             tree.function_obj = Describe(tree.word)
             print('add describe')
 
-        # num children
-        if level + 1 > max_level:
-            tree.num_children = 0
-        else:
-            tree.num_children = children_dict[tree.function]
-            if parent is not None:  # then the parent must be a layout node
-                if child_idx == 0:
-                    parent.function_obj.left_child = tree.function_obj
-                else:
-                    parent.function_obj.right_child = tree.function_obj
+        tree.num_children = children_dict[tree.function]
+        if parent is not None:  # then the parent must be a layout node
+            if child_idx == 0:
+                parent.function_obj.left_child = tree.function_obj
+            else:
+                parent.function_obj.right_child = tree.function_obj
 
         for i in range(tree.num_children):
             tree.children.append(Tree())
-            tree.children[i] = expand_tree(tree.children[i], level + 1, tree, [], i, max_level, metadata_pattern)
+            tree.children[i] = expand_tree(tree.children[i], level + 1, tree, [], i, max_layout_level,
+                                           add_layout_prob - 0.15,
+                                           train, zero_shot)
 
     # must contain only one child node, which is a combine node
     elif parent.function == 'describe' or parent.function == 'combine':
@@ -137,7 +140,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, zero_shot
 
         if zero_shot:
             dict_idx = metadata_pattern[pattern_map[attribute]]
-            module_dict = module_dicts[dict_idx]
+            module_dict = module_dicts_zeroshot[dict_idx]
         else:
             module_dict = module_dict_normal
 
@@ -158,14 +161,15 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_level, zero_shot
 
             for i in range(tree.num_children):
                 tree.children.append(Tree())
-                tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_level,
-                                               metadata_pattern)
+                tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_layout_level,
+                                               add_layout_prob - 0.15,
+                                               train, zero_shot)
     else:
         raise ValueError('Wrong function.')
     return tree
 
 
-def visualize_tree(trees):
+def visualize_trees(trees):
     for i in range(len(trees)):
         print('************** tree **************')
         _visualize_tree(trees[i], 0)
@@ -226,17 +230,9 @@ def extract_objects(tree):
     return objects
 
 
-def sample_tree(max_level, zero_shot=False, train=True):
+def sample_tree(max_layout_level, add_layout_prob, zero_shot=False, train=True):
     tree = Tree()
-    if zero_shot:
-        if train:
-            pattern = random.sample(training_patterns, 1)[0]  # sample a pattern for training data
-        else:
-            pattern = random.sample(test_patterns, 1)[0]  # sample a pattern for test data
-        tree = expand_tree(tree, 0, None, [], 0, max_level, zero_shot=True, metadata_pattern=pattern)
-    else:
-        tree = expand_tree(tree, 0, None, [], 0, max_level, zero_shot=False)
-
+    tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
     allign_tree(tree, 0)
     return tree
 
@@ -315,4 +311,6 @@ if __name__ == '__main__':
     #
     # visualize_tree(trees)
 
-    tree = sample_tree(max_level=3)
+    for i in range(10):
+        tree = sample_tree(max_layout_level=2)
+        visualize_trees([tree])

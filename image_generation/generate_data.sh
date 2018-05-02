@@ -6,10 +6,22 @@ $blender --background --python render_images.py -- --num_images 900 --use_gpu 1
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 
 $blender --background --python render_images.py -- --num_images 500 --use_gpu 1 
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 
+$blender --background --python render_images.py -- --num_images 500 --use_gpu 1 
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
 $blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
 $blender --background --python render_images.py -- --num_images 500 --use_gpu 1 --train_flag 0
-   
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
+$blender --background --python render_images.py -- --num_images 900 --use_gpu 1 --train_flag 0
+$blender --background --python render_images.py -- --num_images 500 --use_gpu 1 --train_flag 0
+  
