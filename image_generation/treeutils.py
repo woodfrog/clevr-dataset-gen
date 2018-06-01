@@ -37,8 +37,8 @@ module_dict_all = dict()
 
 # Zero shot split
 # objects list
-module_dict_split1['describe'] = ['cylinder', 'sphere']
-module_dict_split2['describe'] = ['cube', 'sphere']
+module_dict_split1['describe'] = ['cube']
+module_dict_split2['describe'] = ['cylinder', 'sphere']
 module_dict_all['describe'] = ['cylinder', 'cube', 'sphere']
 
 # attributes list
@@ -46,11 +46,11 @@ attribute_list = ['material', 'color', 'size']
 
 module_dict_split1['combine'] = {'material': ['metal'],
                                  'color': ['green', 'blue', 'yellow', 'red'],
-                                 'size': ['large']}
+                                 'size': ['large', 'small']}
 
 module_dict_split2['combine'] = {'material': ['rubber'],
                                  'color': ['cyan', 'brown', 'gray', 'purple'],
-                                 'size': ['small']}
+                                 'size': ['small', 'large']}
 
 module_dict_all['combine'] = {'material': ['rubber', 'metal'],
                               'color': ['cyan', 'brown', 'gray', 'purple', 'green', 'blue', 'yellow', 'red'],
@@ -67,16 +67,12 @@ module_dict_normal = module_dict_all
 pattern_map = {'describe': 0, 'material': 1, 'color': 2, 'size': 3, 'layout': 4}
 
 zs_training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
+zs_training_probs = [1.0/3, 2.0/3]
 zs_test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0, 0, 0), (0, 1, 1, 1, 0),
                     (1, 0, 0, 0, 1), (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
+zs_test_probs = [1.0/6, 1.0/12, 1.0/12, 1.0/6, 1.0/12, 1.0/6, 1.0/12, 1.0/6] 
 
-
-def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, add_layout_prob, train, zero_shot=False):
-    if zero_shot:
-        if train:
-            metadata_pattern = random.sample(zs_training_patterns, 1)[0]  # sample a pattern for training data
-        else:
-            metadata_pattern = random.sample(zs_test_patterns, 1)[0]  # sample a pattern for test data
+def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, add_layout_prob, train, zero_shot=False, metadata_pattern=None):
     if parent is None or parent.function == 'layout':
         # sample module, the module can be either layout or describe here
         if level + 1 > max_layout_level:
@@ -88,7 +84,12 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
             else:
                 module_idx = 1
         tree.function = module_list[module_idx]
-
+        if zero_shot and (level == 0 or tree.function == 'describe'):
+            r = random.random()
+            if train:
+                metadata_pattern = _choose_pattern(zs_training_patterns, zs_training_probs, r)
+            else:
+                metadata_pattern = _choose_pattern(zs_test_patterns, zs_test_probs, r)
         # sample content
         if zero_shot:
             assert (metadata_pattern is not None)
@@ -117,8 +118,8 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
         for i in range(tree.num_children):
             tree.children.append(Tree())
             tree.children[i] = expand_tree(tree.children[i], level + 1, tree, [], i, max_layout_level,
-                                           add_layout_prob - 0.15,
-                                           train, zero_shot)
+                                           add_layout_prob-0.1,
+                                           train, zero_shot, metadata_pattern)
 
     # must contain only one child node, which is a combine node
     elif parent.function == 'describe' or parent.function == 'combine':
@@ -139,6 +140,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
         memorylist += [attribute]
 
         if zero_shot:
+            assert(metadata_pattern is not None)
             dict_idx = metadata_pattern[pattern_map[attribute]]
             module_dict = module_dicts_zeroshot[dict_idx]
         else:
@@ -162,12 +164,21 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
             for i in range(tree.num_children):
                 tree.children.append(Tree())
                 tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_layout_level,
-                                               add_layout_prob - 0.15,
-                                               train, zero_shot)
+                                               add_layout_prob-0.1,
+                                               train, zero_shot, metadata_pattern)
     else:
         raise ValueError('Wrong function.')
     return tree
 
+
+def _choose_pattern(patterns, probs, r):
+    assert(sum(probs) == 1, 'Given prob list should sum up to 1')
+    assert(len(patterns) == len(probs), 'Given patterns should have the same length as the given probs')
+    accum = 0
+    for i, prob in enumerate(probs):
+        accum += prob
+        if r < accum:
+            return patterns[i]
 
 def visualize_trees(trees):
     for i in range(len(trees)):
@@ -281,7 +292,34 @@ def _set_layout_bbox(tree):
         right_child_bbox = tree.children[1].bbox
         tree.bbox = np.array(_combine_bbox(left_child_bbox, right_child_bbox))
 
-    return tree
+        return tree
+
+
+def _correct_layout_word(tree):
+    if tree.function != 'layout':
+        return tree
+    else:
+        left_child_bbox = tree.children[0].bbox
+        right_child_bbox = tree.children[1].bbox
+        if left_child_bbox[0] < right_child_bbox[0]:
+            if right_child_bbox[1] - 5 < left_child_bbox[1] < right_child_bbox[1] + 5:
+                tree.word = 'left'
+            elif left_child_bbox[1] <= right_child_bbox[1] - 5:
+                tree.word = 'left-behind'
+            else:
+                tree.word = 'left-front'
+        else:
+            if right_child_bbox[1] - 5 < left_child_bbox[1] < right_child_bbox[1] + 5:
+                tree.word = 'right'
+            elif left_child_bbox[1] <= right_child_bbox[1] - 5:
+                tree.word = 'right-behind'
+            else:
+                tree.word = 'right-front'
+
+        for child in tree.children:
+            _correct_layout_word(child)
+
+        return tree
 
 
 def _combine_bbox(bbox1, bbox2):
@@ -311,6 +349,6 @@ if __name__ == '__main__':
     #
     # visualize_tree(trees)
 
-    for i in range(10):
-        tree = sample_tree(max_layout_level=2)
+    for i in range(1):
+        tree = sample_tree(max_layout_level=2, add_layout_prob=0.6, zero_shot=True, train=True)
         visualize_trees([tree])

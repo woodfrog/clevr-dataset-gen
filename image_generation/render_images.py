@@ -102,16 +102,16 @@ parser.add_argument('--split', default='new',
                     help="Name of the split for which we are rendering. This will be added to " +
                          "the names of rendered images, and will also be stored in the JSON " +
                          "scene structure for each image.")
-parser.add_argument('--output_image_dir', default='../output/CLEVR_128/images/',
+parser.add_argument('--output_image_dir', default='../output/CLEVR_128_NEW/images/',
                     help="The directory where output images will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_dir', default='../output/CLEVR_128/scenes/',
+parser.add_argument('--output_scene_dir', default='../output/CLEVR_128_NEW/scenes/',
                     help="The directory where output JSON scene structures will be stored. " +
                          "It will be created if it does not exist.")
-parser.add_argument('--output_tree_dir', default='../output/CLEVR_128/trees/',
+parser.add_argument('--output_tree_dir', default='../output/CLEVR_128_NEW/trees/',
                     help="The directory where output trees will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_file', default='../output/CLEVR_128/CLEVR_scenes.json',
+parser.add_argument('--output_scene_file', default='../output/CLEVR_128_NEW/CLEVR_scenes.json',
                     help="Path to write a single JSON file containing all scene information")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
                     help="The directory where blender scene files will be stored, if the " +
@@ -165,7 +165,7 @@ parser.add_argument('--train_flag', default=1, type=int,
                     help="generate training or test, set to 0 for testing")
 parser.add_argument('--zero_shot', default=0, type=int,
                     help="Whether to use zero-shot setting when generate the data")
-parser.add_argument('--add_layout_prob', default=0.8, type=float,
+parser.add_argument('--add_layout_prob', default=0.7, type=float,
                     help="probability of adding an extra layout layer")
 
 
@@ -518,7 +518,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
 
 
 def render_scene_with_tree(args,
-                           tree_max_level=3,
+                           tree_max_level=2,
                            output_index=0,
                            output_split='none',
                            output_image='render.png',

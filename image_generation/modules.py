@@ -19,12 +19,10 @@ class Layout(object):
     position_dict = {
         'left': ((-1.5, 0), (1.5, 0)),
         'right': ((1.5, 0), (-1.5, 0)),
-        'front': ((0, 2), (0, -2)),
-        'behind': ((0, -2), (0, 2)),
-        'left-front': [((-1, 2), (1, -2))],
-        'right-front': [((1, 2), (-1, -2))],
-        'left-behind': [((-1, -2), (1, 2))],
-        'right-behind': [((1, -2), (-1, 2))]
+        'left-front': [((-1.0, 2.0), (1.0, -2.0))],
+        'right-front': [((1.0, 2.0), (-1.0, -2.0))],
+        'left-behind': [((-1.0, -2.0), (1.0, 2.0))],
+        'right-behind': [((1.0, -2.0), (-1.0, 2.0))]
     }
 
     def __init__(self, layout_type):
