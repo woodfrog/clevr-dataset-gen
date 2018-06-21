@@ -118,7 +118,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
         for i in range(tree.num_children):
             tree.children.append(Tree())
             tree.children[i] = expand_tree(tree.children[i], level + 1, tree, [], i, max_layout_level,
-                                           add_layout_prob-0.1,
+                                           add_layout_prob,
                                            train, zero_shot, metadata_pattern)
 
     # must contain only one child node, which is a combine node
@@ -164,7 +164,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
             for i in range(tree.num_children):
                 tree.children.append(Tree())
                 tree.children[i] = expand_tree(tree.children[i], level + 1, tree, memorylist, i, max_layout_level,
-                                               add_layout_prob-0.1,
+                                               add_layout_prob,
                                                train, zero_shot, metadata_pattern)
     else:
         raise ValueError('Wrong function.')
