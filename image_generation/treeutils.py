@@ -8,16 +8,6 @@ import numpy as np
 from lib.tree import Tree
 from modules import Layout, Combine, Describe
 
-# parser = argparse.ArgumentParser(description='generate trees for CLEVR dataset')
-# parser.add_argument('--output_dir', type=str, default='',
-#                     help='output path for trees')
-# parser.add_argument('--train_sample', type=int, default=0,
-#                     help='number of samples for training')
-# parser.add_argument('--test_sample', type=int, default=0,
-#                     help='number of samples for testing')
-# args = parser.parse_args()
-
-
 ######### hyperparameters ##########
 
 # module list
@@ -67,12 +57,14 @@ module_dict_normal = module_dict_all
 pattern_map = {'describe': 0, 'material': 1, 'color': 2, 'size': 3, 'layout': 4}
 
 zs_training_patterns = [(0, 1, 0, 1, 0), (1, 0, 1, 0, 1)]
-zs_training_probs = [1.0/3, 2.0/3]
+zs_training_probs = [1.0 / 3, 2.0 / 3]
 zs_test_patterns = [(1, 1, 1, 1, 1), (0, 0, 0, 0, 0), (0, 0, 1, 1, 1), (1, 1, 0, 0, 0), (0, 1, 1, 1, 0),
                     (1, 0, 0, 0, 1), (0, 1, 1, 1, 1), (1, 0, 0, 0, 0)]
-zs_test_probs = [1.0/6, 1.0/12, 1.0/12, 1.0/6, 1.0/12, 1.0/6, 1.0/12, 1.0/6] 
+zs_test_probs = [1.0 / 6, 1.0 / 12, 1.0 / 12, 1.0 / 6, 1.0 / 12, 1.0 / 6, 1.0 / 12, 1.0 / 6]
 
-def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, add_layout_prob, train, zero_shot=False, metadata_pattern=None):
+
+def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, add_layout_prob, train, zero_shot=False,
+                metadata_pattern=None):
     if parent is None or parent.function == 'layout':
         # sample module, the module can be either layout or describe here
         if level + 1 > max_layout_level:
@@ -140,7 +132,7 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
         memorylist += [attribute]
 
         if zero_shot:
-            assert(metadata_pattern is not None)
+            assert (metadata_pattern is not None)
             dict_idx = metadata_pattern[pattern_map[attribute]]
             module_dict = module_dicts_zeroshot[dict_idx]
         else:
@@ -172,13 +164,14 @@ def expand_tree(tree, level, parent, memorylist, child_idx, max_layout_level, ad
 
 
 def _choose_pattern(patterns, probs, r):
-    assert(sum(probs) == 1, 'Given prob list should sum up to 1')
-    assert(len(patterns) == len(probs), 'Given patterns should have the same length as the given probs')
+    assert (sum(probs) == 1, 'Given prob list should sum up to 1')
+    assert (len(patterns) == len(probs), 'Given patterns should have the same length as the given probs')
     accum = 0
     for i, prob in enumerate(probs):
         accum += prob
         if r < accum:
             return patterns[i]
+
 
 def visualize_trees(trees):
     for i in range(len(trees)):
@@ -251,26 +244,26 @@ def sample_tree(max_layout_level, add_layout_prob, zero_shot=False, train=True):
 def sample_tree_flexible(max_layout_level, add_layout_prob, zero_shot=False, train=True, arguments=None):
     tree = Tree()
 
-    if arguments == None:
-      tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
+    if arguments is None:
+        tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
     else:
-      if arguments.has_key('max_num_objs'):
-        max_num_objs = arguments['max_num_objs']
-        tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
-        num_objs = count_functions(tree, 'describe')
-        while num_objs > max_num_objs:
-          tree = Tree()
-          tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
-          num_objs = count_functions(tree, 'describe')
-          print(num_objs)
-      elif arguments.has_key('fix_num_objs'):
-        fix_num_objs = arguments['fix_num_objs']
-        tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
-        num_objs = count_functions(tree, 'describe')
-        while num_objs != fix_num_objs:
-          tree = Tree()
-          tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
-          num_objs = count_functions(tree, 'describe')
+        if 'max_num_objs' in arguments:
+            max_num_objs = arguments['max_num_objs']
+            tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
+            num_objs = count_functions(tree, 'describe')
+            while num_objs > max_num_objs:
+                tree = Tree()
+                tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
+                num_objs = count_functions(tree, 'describe')
+                print(num_objs)
+        elif 'fix_num_objs' in arguments:
+            fix_num_objs = arguments['fix_num_objs']
+            tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
+            num_objs = count_functions(tree, 'describe')
+            while num_objs != fix_num_objs:
+                tree = Tree()
+                tree = expand_tree(tree, 0, None, [], 0, max_layout_level, add_layout_prob, train, zero_shot=zero_shot)
+                num_objs = count_functions(tree, 'describe')
     allign_tree(tree, 0)
     return tree
 
@@ -279,13 +272,14 @@ def count_functions(tree, name):
     num_functions = _count_functions(tree, name)
     return num_functions
 
+
 def _count_functions(tree, name):
     num_objs = 0
     for i in range(0, tree.num_children):
-      num_objs += _count_functions(tree.children[i], name)
+        num_objs += _count_functions(tree.children[i], name)
 
     if tree.function == name:
-      num_objs += 1
+        num_objs += 1
 
     return num_objs
 
@@ -396,8 +390,10 @@ if __name__ == '__main__':
         tree = sample_tree(max_layout_level=2, add_layout_prob=0.6, zero_shot=True, train=True)
         visualize_trees([tree])
         print('max sample tree')
-        tree = sample_tree_flexible(max_layout_level=3, add_layout_prob=0.6, zero_shot=False, train=True, arguments={'max_num_objs':3})
+        tree = sample_tree_flexible(max_layout_level=3, add_layout_prob=0.6, zero_shot=False, train=True,
+                                    arguments={'max_num_objs': 3})
         visualize_trees([tree])
         print('fix sample tree')
-        tree = sample_tree_flexible(max_layout_level=3, add_layout_prob=0.6, zero_shot=False, train=True, arguments={'fix_num_objs':8})
+        tree = sample_tree_flexible(max_layout_level=3, add_layout_prob=0.6, zero_shot=False, train=True,
+                                    arguments={'fix_num_objs': 8})
         visualize_trees([tree])

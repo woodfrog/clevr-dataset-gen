@@ -10,7 +10,7 @@ import _init_paths
 import math, sys, random, argparse, json, os, tempfile, pickle
 from datetime import datetime as dt
 from collections import Counter
-from treeutils import sample_tree, extract_objects, refine_tree_info, remove_function_obj
+from treeutils import sample_tree, extract_objects, refine_tree_info, remove_function_obj, sample_tree_flexible
 from modules import Combine, Layout, Describe
 from lib.tree import Tree
 import pdb
@@ -103,16 +103,16 @@ parser.add_argument('--split', default='new',
                     help="Name of the split for which we are rendering. This will be added to " +
                          "the names of rendered images, and will also be stored in the JSON " +
                          "scene structure for each image.")
-parser.add_argument('--output_image_dir', default='../output/CLEVR_128_BALANCED/images/',
+parser.add_argument('--output_image_dir', default='../output/CLEVR_64_OBJ_2/images/',
                     help="The directory where output images will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_dir', default='../output/CLEVR_128_BALANCED/scenes/',
+parser.add_argument('--output_scene_dir', default='../output/CLEVR_64_OBJ_2/scenes/',
                     help="The directory where output JSON scene structures will be stored. " +
                          "It will be created if it does not exist.")
-parser.add_argument('--output_tree_dir', default='../output/CLEVR_128_BALANCED/trees/',
+parser.add_argument('--output_tree_dir', default='../output/CLEVR_64_OBJ_2/trees/',
                     help="The directory where output trees will be stored. It will be " +
                          "created if it does not exist.")
-parser.add_argument('--output_scene_file', default='../output/CLEVR_128_BALANCED/CLEVR_scenes.json',
+parser.add_argument('--output_scene_file', default='../output/CLEVR_64_OBJ_2/CLEVR_scenes.json',
                     help="Path to write a single JSON file containing all scene information")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
                     help="The directory where blender scene files will be stored, if the " +
@@ -138,9 +138,9 @@ parser.add_argument('--use_gpu', default=0, type=int,
                     help="Setting --use_gpu 1 enables GPU-accelerated rendering using CUDA. " +
                          "You must have an NVIDIA GPU with the CUDA toolkit installed for " +
                          "to work.")
-parser.add_argument('--width', default=128, type=int,
+parser.add_argument('--width', default=64, type=int,
                     help="The width (in pixels) for the rendered images")
-parser.add_argument('--height', default=128, type=int,
+parser.add_argument('--height', default=64, type=int,
                     help="The height (in pixels) for the rendered images")
 parser.add_argument('--key_light_jitter', default=1.0, type=float,
                     help="The magnitude of random jitter to add to the key light position.")
@@ -630,7 +630,8 @@ def add_objects_from_tree(scene_struct, args, camera, tree_max_level):
     """
     Add random objects to the current blender scene
     """
-    tree = sample_tree(tree_max_level, add_layout_prob=args.add_layout_prob, zero_shot=args.zero_shot, train=args.train_flag)
+    # tree = sample_tree(tree_max_level, add_layout_prob=args.add_layout_prob, zero_shot=args.zero_shot, train=args.train_flag)
+    tree = sample_tree_flexible(max_layout_level=2, add_layout_prob=0.6, zero_shot=False, train=True, arguments={'fix_num_objs':2})
 
     specified_objects = extract_objects(tree)
 
